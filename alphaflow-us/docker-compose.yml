@@ -1,0 +1,25 @@
+version: '3.8'
+
+services:
+  alphaflow-db:
+    image: postgres:15
+    container_name: alphaflow-us-db
+    environment:
+      POSTGRES_USER: alphaflow
+      POSTGRES_PASSWORD: alphaflow123
+      POSTGRES_DB: alphaflow_us
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./scripts/init_db.sql:/docker-entrypoint-initdb.d/init_db.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U alphaflow"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+    driver: local
