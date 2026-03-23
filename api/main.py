@@ -20,6 +20,7 @@ from api.routers import (
     macro,
     news,
     performance,
+    quiz,
     rag,
     system,
 )
@@ -105,6 +106,7 @@ app.include_router(geopolitical.router)
 app.include_router(backtest.router)
 app.include_router(finbert.router)
 app.include_router(lstm.router)
+app.include_router(quiz.router)
 app.include_router(system.router)
 
 

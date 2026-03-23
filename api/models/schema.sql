@@ -586,3 +586,27 @@ BEGIN
         ALTER TABLE macro_regime ADD COLUMN geopolitical_regime VARCHAR(20);
     END IF;
 END $$;
+
+-- ============================================================
+-- 7. quiz_sessions 테이블 - 투자 성향 퀴즈 세션
+-- ============================================================
+CREATE TABLE IF NOT EXISTS quiz_sessions (
+      id SERIAL PRIMARY KEY
+    , session_id VARCHAR(100) UNIQUE NOT NULL
+    , user_id VARCHAR(100)  -- 선택적 사용자 식별자
+    , status VARCHAR(20) DEFAULT 'started'  -- started | completed
+    , basic_answers JSONB  -- Q1~Q5 답변
+    , term_answers JSONB  -- T1~T5 답변
+    , advanced_answers JSONB  -- Q6~Q10 답변 (선택)
+    , risk_score INTEGER  -- 0~100
+    , expertise_level VARCHAR(20)  -- beginner | intermediate | advanced
+    , strategy_key VARCHAR(50)  -- ultra_safe | conservative | balanced | aggressive | yolo
+    , strategy_profile JSONB  -- 전체 전략 프로필
+    , created_at TIMESTAMPTZ DEFAULT NOW()
+    , updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_quiz_sessions_session_id ON quiz_sessions(session_id);
+CREATE INDEX IF NOT EXISTS idx_quiz_sessions_user_id ON quiz_sessions(user_id);
+CREATE INDEX IF NOT EXISTS idx_quiz_sessions_status ON quiz_sessions(status);
+CREATE INDEX IF NOT EXISTS idx_quiz_sessions_created_at ON quiz_sessions(created_at);
