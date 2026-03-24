@@ -370,6 +370,183 @@ def get_scenario_by_key(key: str) -> Dict:
     return {}
 
 
+def select_scenarios(risk_score: int, expertise_level: str) -> List[Dict]:
+    """사용자의 위험 점수와 전문성 수준에 따라 시나리오 선택
+
+    Args:
+        risk_score: 위험 성향 점수 (0~100)
+        expertise_level: 전문성 수준 ('beginner', 'intermediate', 'advanced')
+
+    Returns:
+        List[Dict]: 선택된 시나리오 목록
+    """
+    # 전문성 수준에 따른 시나리오 개수 결정
+    if expertise_level == "beginner":
+        count = 2
+        # 극단적 사례: 코로나 폭락 + AI 랠리
+        selected = [
+            SCENARIOS["covid_crash_week2"],
+            SCENARIOS["ai_rally_2023"]
+        ]
+    elif expertise_level == "intermediate":
+        count = 3
+        # 위 + 2008 바닥
+        selected = [
+            SCENARIOS["covid_crash_week2"],
+            SCENARIOS["ai_rally_2023"],
+            SCENARIOS["gfc_2008_bottom"]
+        ]
+    else:  # advanced
+        count = 5
+        # 위 + 횡보 + 닷컴 정점
+        selected = [
+            SCENARIOS["covid_crash_week2"],
+            SCENARIOS["ai_rally_2023"],
+            SCENARIOS["gfc_2008_bottom"],
+            SCENARIOS["sideways_2015"],
+            SCENARIOS["dot_com_peak"]
+        ]
+
+    logger.info(
+        f"시나리오 선택: risk_score={risk_score}, expertise={expertise_level}, "
+        f"count={count}, scenarios={[s['key'] for s in selected]}"
+    )
+
+    # 반드시 하락장 1개 이상 + 상승장 1개 이상 포함 검증
+    market_types = [s.get("market_type") for s in selected]
+    has_down = any(mt == "down" for mt in market_types)
+    has_up = any(mt == "up" for mt in market_types)
+
+    if not has_down or not has_up:
+        logger.warning(
+            f"시나리오 선택 검증 실패: has_down={has_down}, has_up={has_up}"
+        )
+
+    return selected
+
+
+def get_scenario_chart_data(ticker: str, chart_start: str, chart_end: str) -> List[Dict]:
+    """시나리오 차트용 가격 데이터 조회
+
+    Args:
+        ticker: 티커 심볼 (예: SPY, QQQ)
+        chart_start: 차트 시작일 (YYYY-MM-DD)
+        chart_end: 차트 종료일 (YYYY-MM-DD)
+
+    Returns:
+        List[Dict]: OHLCV 데이터 리스트
+    """
+    import yfinance as yf
+    from datetime import datetime
+
+    try:
+        # DB에서 먼저 조회 시도
+        from api.core.database import get_pool
+        import asyncio
+
+        async def get_from_db():
+            pool = get_pool()
+            async with pool.acquire() as conn:
+                rows = await conn.fetch(
+                    """
+                    SELECT date, open, high, low, close, volume, adj_close
+                    FROM price_history
+                    WHERE symbol = $1 AND date >= $2 AND date <= $3
+                    ORDER BY date ASC
+                    """,
+                    ticker,
+                    datetime.strptime(chart_start, "%Y-%m-%d").date(),
+                    datetime.strptime(chart_end, "%Y-%m-%d").date()
+                )
+                return rows
+
+        # 비동기 함수를 동기적으로 실행
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        db_rows = loop.run_until_complete(get_from_db())
+        loop.close()
+
+        if db_rows and len(db_rows) > 0:
+            logger.info(f"DB에서 차트 데이터 조회 성공: {ticker}, {len(db_rows)}개")
+            return [
+                {
+                    "date": row["date"].isoformat(),
+                    "open": float(row["open"]),
+                    "high": float(row["high"]),
+                    "low": float(row["low"]),
+                    "close": float(row["close"]),
+                    "volume": int(row["volume"]) if row["volume"] else 0,
+                    "adj_close": float(row["adj_close"])
+                }
+                for row in db_rows
+            ]
+
+    except Exception as e:
+        logger.warning(f"DB 조회 실패, yfinance로 전환: {e}")
+
+    # yfinance에서 조회
+    try:
+        logger.info(f"yfinance에서 데이터 조회: {ticker}, {chart_start}~{chart_end}")
+        df = yf.download(ticker, start=chart_start, end=chart_end, progress=False)
+
+        if df.empty:
+            logger.warning(f"yfinance 데이터 없음: {ticker}")
+            return []
+
+        # DataFrame을 딕셔너리 리스트로 변환
+        chart_data = []
+        for date, row in df.iterrows():
+            chart_data.append({
+                "date": date.strftime("%Y-%m-%d"),
+                "open": float(row["Open"]),
+                "high": float(row["High"]),
+                "low": float(row["Low"]),
+                "close": float(row["Close"]),
+                "volume": int(row["Volume"]),
+                "adj_close": float(row["Adj Close"])
+            })
+
+        logger.info(f"yfinance 조회 성공: {ticker}, {len(chart_data)}개")
+
+        # DB에 저장 (비동기)
+        try:
+            async def save_to_db():
+                pool = get_pool()
+                async with pool.acquire() as conn:
+                    for data in chart_data:
+                        await conn.execute(
+                            """
+                            INSERT INTO price_history
+                            (symbol, date, open, high, low, close, volume, adj_close)
+                            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+                            ON CONFLICT (symbol, date) DO NOTHING
+                            """,
+                            ticker,
+                            datetime.strptime(data["date"], "%Y-%m-%d").date(),
+                            data["open"],
+                            data["high"],
+                            data["low"],
+                            data["close"],
+                            data["volume"],
+                            data["adj_close"]
+                        )
+
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            loop.run_until_complete(save_to_db())
+            loop.close()
+            logger.info(f"DB 저장 완료: {ticker}, {len(chart_data)}개")
+
+        except Exception as e:
+            logger.warning(f"DB 저장 실패: {e}")
+
+        return chart_data
+
+    except Exception as e:
+        logger.error(f"yfinance 조회 실패: {e}")
+        return []
+
+
 def calculate_action_score(scenario_key: str, action: str) -> int:
     """행동 점수 계산
 
