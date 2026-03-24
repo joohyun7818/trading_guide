@@ -1,42 +1,25 @@
-version: "3.8"
+version: '3.8'
 
 services:
-  db:
+  alphaflow-db:
     image: postgres:15
-    container_name: alphaflow-db
-    restart: unless-stopped
+    container_name: alphaflow-us-db
     environment:
-      POSTGRES_DB: alphaflow_us
       POSTGRES_USER: alphaflow
       POSTGRES_PASSWORD: alphaflow123
+      POSTGRES_DB: alphaflow_us
     ports:
       - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
+      - ./scripts/init_db.sql:/docker-entrypoint-initdb.d/init_db.sql
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U alphaflow -d alphaflow_us"]
+      test: ["CMD-SHELL", "pg_isready -U alphaflow"]
       interval: 10s
       timeout: 5s
       retries: 5
-
-  app:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    container_name: alphaflow-app
     restart: unless-stopped
-    command: uvicorn api.main:app --host 0.0.0.0 --port 8000 --reload
-    ports:
-      - "8000:8000"
-    env_file:
-      - .env
-    depends_on:
-      db:
-        condition: service_healthy
-    volumes:
-      - .:/app
-      - chroma_data:/app/chroma_data
 
 volumes:
   pgdata:
-  chroma_data:
+    driver: local
