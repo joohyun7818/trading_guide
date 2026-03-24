@@ -66,8 +66,14 @@
 
 ### 2. 데이터베이스 시작
 ```bash
-cd alphaflow-us
-docker-compose up -d
+# 구 프로젝트 PostgreSQL이 이미 실행 중이면 생략
+docker compose --profile db up -d
+```
+
+구 프로젝트의 PostgreSQL이 이미 실행 중이면 컨테이너를 띄우지 말고 아래 명령으로 스키마만 추가하세요.
+
+```bash
+psql -h localhost -p 5432 -U alphaflow -d alphaflow_us -f scripts/init_db.sql
 ```
 
 ### 3. 환경 설정
@@ -79,7 +85,7 @@ cp .env.development .env
 ### 4. 백엔드 실행
 ```bash
 pip install -r requirements.txt
-python -m uvicorn api.main:app --reload --host 0.0.0.0 --port 8000
+python -m uvicorn api.main:app --reload --host 0.0.0.0 --port 8001
 ```
 
 ### 5. 과거 데이터 로딩
@@ -90,10 +96,10 @@ python scripts/load_history.py
 ### 6. API 테스트
 ```bash
 # 헬스체크
-curl http://localhost:8000/health
+curl http://localhost:8001/health
 
 # 퀴즈 시작
-curl -X POST http://localhost:8000/api/quiz/start
+curl -X POST http://localhost:8001/api/quiz/start
 ```
 
 ## API 엔드포인트
@@ -182,8 +188,8 @@ AI API 응답 캐시
 | GEMINI_API_KEY | Gemini API 키 | (필수) |
 | DATABASE_URL | PostgreSQL URL | postgresql://alphaflow:alphaflow123@localhost:5432/alphaflow_us |
 | APP_HOST | API 서버 호스트 | 0.0.0.0 |
-| APP_PORT | API 서버 포트 | 8000 |
-| CORS_ORIGINS | CORS 허용 오리진 | http://localhost:5173,http://localhost:3000 |
+| APP_PORT | API 서버 포트 | 8001 |
+| CORS_ORIGINS | CORS 허용 오리진 | http://localhost:5174,http://localhost:3001 |
 | LOG_LEVEL | 로그 레벨 | INFO |
 
 ## 향후 계획
