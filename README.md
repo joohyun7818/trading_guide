@@ -1,303 +1,209 @@
-# AlphaFlow US
+# AlphaFlow US v2 - 투자 성향 기반 백테스팅 체험 플랫폼
 
-AI-powered swing trading automation system for S&P 500 stocks. Analyzes news sentiment (text), technical indicators (numeric), and candlestick chart patterns (visual) using a 3-axis pipeline with Ollama local LLMs. Executes trades via Alpaca API with macro regime-aware leveraged ETF strategy (TQQQ/SQQQ).
+사용자의 투자 성향을 퀴즈로 진단하고, 실제 과거 시장 상황에서의 매매 판단을 시뮬레이션하여 보정된 투자 전략을 제시하는 AI 기반 플랫폼입니다.
 
-## Architecture
+## 주요 기능
 
-```
-[S&P 500 Loader] --> [Price Crawler] --> [PostgreSQL]
-        |
-[News Crawler] --> [Sentiment] --> [News DB] --> [Indexer] --> [ChromaDB]
-        |                                                         |
-[Batch Processor]                                          [RAG Engine]
-                                                                |
-Step 0: Load & Crawl                                            |
-        |                                                       |
-Step 1: Screen                                                  |
-        |                                                       |
-Step 2: News + 1st Sentiment (qwen3:4b)                        |
-        |                                                       |
-Step 3: 2nd RAG + Visual (qwen3-vl:8b) <-----------------------+
-        |
-Step 4: 3-Axis Composite --> Orders
-        |
-[RAG Analyzer (qwen3:8b)]    [Chart Analyzer (qwen3-vl:8b)]
-                                       ^
-                                  [mplfinance]
-        |
-[Trading Engine]
-  Text 0.35 + Numeric 0.50 + Macro 0.15
-  (full: Text 0.25 + Numeric 0.35 + Visual 0.25 + Macro 0.15)
-        |
-[Alpaca API] --> Paper/Live Trading
+### 1. 투자 성향 퀴즈
+- **기본 질문 (Q1~Q5)**: 투자 목적, 기간, 손실 허용도, 경험, 성향
+- **용어 체크 (T1~T5)**: MDD, 샤프 비율, 리밸런싱, 섹터 로테이션, 레버리지 ETF
+- **고급 질문 (Q6~Q10)**: 전문가용 세부 설정 (섹터 선호, MDD 한도, 리밸런싱 주기 등)
+- **위험 점수 산출**: 0~100 스케일의 위험 성향 점수
 
-[Macro Engine] --> Regime Score --> TQQQ/SQQQ Strategy
-```
+### 2. 전략 매핑
+| 점수 | 전략 | 자산 배분 | 특징 |
+|------|------|-----------|------|
+| 0~20 | 안전제일 거북이 🐢 | 주식:채권:현금 = 20:60:20 | 원금 보호 최우선 |
+| 21~40 | 신중한 부엉이 🦉 | 40:45:15 | 안정성 중시, 완만한 성장 |
+| 41~60 | 균형잡힌 여우 🦊 | 60:30:10 | 위험과 수익의 균형 |
+| 61~80 | 공격적인 사자 🦁 | 80:15:5 | 적극적 위험 감수 |
+| 81~100 | 달나라 고양이 🐱 | 95:5:0 | 최대 수익 추구 (YOLO) |
 
-## Tech Stack
+### 3. 시뮬레이션
+실제 과거 시장 상황에서 매매 판단을 받아 행동 점수 계산:
 
-| Area | Technology |
-|------|-----------|
-| Backend | Python 3.11+, FastAPI (fully async/await) |
-| Database | PostgreSQL 15+ (asyncpg driver) |
-| Vector DB | ChromaDB (local persistent) |
-| LLM Runtime | Ollama (http://localhost:11434) |
-| LLM - 1st Classification | qwen3:4b (2.6GB, fast batch) |
-| LLM - 2nd Deep Analysis | qwen3:8b (5.2GB, RAG response) |
-| LLM - Chart Analysis | qwen3-vl:8b (~5.5GB, optional) |
-| LLM - Embedding | bge-m3 (1.2GB, news vectorization) |
-| Broker API | Alpaca (Paper Trading / Live) |
-| News Sources | Finnhub API, Yahoo Finance RSS, Google News RSS |
-| Price Data | yfinance |
-| Chart Generation | mplfinance (candlestick PNG) |
-| Frontend | React 18 + Vite + Tailwind CSS v3 (dark theme) |
-| Scheduler | APScheduler (AsyncIOScheduler) |
+- **코로나 폭락 2주차** (2020-03-13): 팬데믹 선언, 서킷브레이커 발동
+- **2008 금융위기 바닥** (2009-03-06): 공포 극대화, 실업률 급등
+- **코로나 V자 회복** (2020-03-27): 무제한 양적완화 발표
+- **2022 인플레 긴축** (2022-01-14): Fed 매파 전환
+- **2023 AI 랠리** (2023-05-26): ChatGPT 열풍, 엔비디아 폭등
+- **닷컴버블 정점** (2000-03-10): FOMO 극대화
+- **2015 횡보장** (2015-08-21): 중국 경제 불안
+- **2010 플래시 크래시** (2010-05-07): 알고리즘 매매 폭주
 
-## Prerequisites
+### 4. 행동 보정
+- 퀴즈 점수 vs 실제 행동 점수 비교
+- Gap Type 분석: `aligned`, `moderate_high`, `high_risk`, `moderate_low`, `low_risk`
+- 보정된 위험 점수로 최종 전략 제시
 
-- **PostgreSQL 15+** - Database server
-- **Python 3.11+** - Backend runtime
-- **Node.js 18+** - Frontend build
-- **Ollama** - Local LLM runtime ([ollama.ai](https://ollama.ai))
-- **Alpaca Account** - Trading API ([app.alpaca.markets/signup](https://app.alpaca.markets/signup))
-- **Finnhub Account** - News API ([finnhub.io/register](https://finnhub.io/register))
+### 5. 백테스팅 (향후 구현)
+- 10년 과거 데이터 기반 백테스트
+- 주요 지표: 총 수익률, 연환산 수익률, 샤프 비율, MDD, 승률, 변동성
+- S&P 500 벤치마크 비교
 
-## Quick Start
+### 6. 스트레스 테스트 (향후 구현)
+- 주요 위기 기간 성과 분석
+- 회복 기간 계산
+- 초과 수익률 비교
 
+## 기술 스택
+
+| 구분 | 기술 |
+|------|------|
+| Backend | Python 3.11+, FastAPI, asyncpg |
+| Database | PostgreSQL 15 |
+| AI | Google Gemini API |
+| 데이터 | yfinance (10년 ETF 가격 데이터) |
+| Frontend | React 18, TypeScript, Vite, Tailwind CSS |
+| 컨테이너 | Docker Compose (DB) |
+
+## 빠른 시작
+
+### 1. 사전 요구사항
+- Python 3.11+
+- Docker & Docker Compose
+- Node.js 18+ (프론트엔드)
+
+### 2. 데이터베이스 시작
 ```bash
-# 1. Clone
-git clone https://github.com/your-repo/alphaflow-us.git
 cd alphaflow-us
-
-# 2. Environment
-cp .env.example .env
-# Edit .env to add your API keys
-
-# 3. Database
-docker-compose up -d db
-pip install psycopg2-binary
-python scripts/init_db.py
-
-# 4. Ollama Models
-ollama pull qwen3:4b
-ollama pull qwen3:8b
-ollama pull qwen3-vl:8b
-ollama pull bge-m3
-
-# 5. Backend
-pip install -r requirements.txt
-uvicorn api.main:app --reload --host 0.0.0.0 --port 8000
-
-# 6. Frontend
-cd frontend
-npm install
-npm run dev
+docker-compose up -d
 ```
 
-## Ollama Models
-
-| Model | Purpose | Size | Memory |
-|-------|---------|------|--------|
-| qwen3:4b | 1st Sentiment Classification | 2.6GB | ~3-4GB |
-| qwen3:8b | 2nd RAG Deep Analysis | 5.2GB | ~7-8GB |
-| qwen3-vl:8b | Chart Pattern Analysis | ~5.5GB | ~8-9GB |
-| bge-m3 | News Embedding | 1.2GB | ~1.5-2GB |
-
-> **Note:** Models are loaded sequentially using asyncio.Lock to prevent concurrent loading, which is critical for 16GB RAM systems.
-
-## 3-Axis Analysis Pipeline
-
-### text_numeric Mode (Default)
-Uses Text + Numeric analysis only. No vision model required.
-
-| Axis | Weight | Source |
-|------|--------|--------|
-| Text | 0.35 | News sentiment via qwen3:4b + qwen3:8b RAG |
-| Numeric | 0.50 | Technical indicators (RSI, MACD, SMA, Bollinger, Volume, 52W, ATR) |
-| Macro | 0.15 | 7-indicator macro regime score |
-
-### full Mode
-Adds Visual analysis using chart pattern recognition.
-
-| Axis | Weight | Source |
-|------|--------|--------|
-| Text | 0.25 | News sentiment via qwen3:4b + qwen3:8b RAG |
-| Numeric | 0.35 | Technical indicators |
-| Visual | 0.25 | Candlestick chart analysis via qwen3-vl:8b |
-| Macro | 0.15 | 7-indicator macro regime score |
-
-### Signal Generation
-- **final_score >= 70** → BUY signal
-- **final_score <= 30** → SELL signal
-- **else** → HOLD
-
-### Adjustments
-- Priced-in news → -15 points
-- RSI >= 75 (overbought) → -10 points
-- RSI <= 25 (oversold) → +10 points
-- Double bottom / Hammer pattern → +8 points
-- Double top / Shooting star → -8 points
-
-## Macro Regime + TQQQ/SQQQ Strategy
-
-### 7 Macro Indicators
-| Indicator | Weight |
-|-----------|--------|
-| S&P 500 Trend | 20% |
-| VIX Level | 20% |
-| Yield Curve Spread | 15% |
-| Market RSI | 15% |
-| Market Breadth | 10% |
-| Put/Call Ratio | 10% |
-| Macro News Sentiment | 10% |
-
-### Regime Classification
-| Score Range | Regime |
-|-------------|--------|
-| >= 0.8 | EXTREME_GREED → Consider TQQQ |
-| 0.6 - 0.8 | GREED |
-| 0.4 - 0.6 | NEUTRAL |
-| 0.2 - 0.4 | FEAR |
-| <= 0.2 | EXTREME_FEAR → Consider SQQQ |
-
-### Leveraged Entry Conditions (Ultra-Conservative)
-- EXTREME regime for **3 consecutive days**
-- **No existing** leveraged position
-- Maximum **3% of total capital**
-- Stop-loss: **-8%**, Take-profit: **+15%**
-- Maximum hold: **5 days**
-
-## API Endpoints
-
-### Dashboard
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/api/dashboard/summary` | Dashboard summary (KPIs) |
-| GET | `/api/dashboard/sectors` | Sector statistics |
-| GET | `/api/dashboard/signals` | Recent signals |
-| GET | `/api/dashboard/stocks` | Stock list with indicators |
-
-### News
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/api/news/{symbol}` | News by symbol |
-| GET | `/api/news/sentiment/overview` | Sentiment overview |
-| POST | `/api/news/trigger` | Manual news crawl |
-| GET | `/api/news/status/collection` | Collection logs |
-| POST | `/api/news/backfill/start` | Start backfill |
-| GET | `/api/news/backfill/status` | Backfill progress |
-
-### Alpaca
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/api/alpaca/connect` | Check connection |
-| GET | `/api/alpaca/status` | Connection status |
-| GET | `/api/alpaca/account` | Account info |
-| GET | `/api/alpaca/holdings` | Current positions |
-| POST | `/api/alpaca/order/buy` | Place buy order |
-| POST | `/api/alpaca/order/sell` | Place sell order |
-| GET | `/api/alpaca/orders` | List orders |
-| POST | `/api/alpaca/cancel/{id}` | Cancel order |
-
-### RAG
-| Method | Path | Description |
-|--------|------|-------------|
-| POST | `/api/rag/index` | Trigger indexing |
-| GET | `/api/rag/status` | Index status |
-| POST | `/api/rag/analysis/{symbol}` | Run RAG analysis |
-| GET | `/api/rag/history/{symbol}` | Analysis history |
-
-### Macro
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/api/macro/regime` | Current regime |
-| POST | `/api/macro/regime/calculate` | Trigger calculation |
-| GET | `/api/macro/regime/history` | Regime history |
-| GET | `/api/macro/leveraged/status` | Leveraged positions |
-| GET | `/api/macro/leveraged/config` | Leveraged config |
-| GET | `/api/macro/settings` | All settings |
-| GET | `/api/macro/settings/{key}` | Get setting |
-| PUT | `/api/macro/settings/{key}` | Update setting |
-
-### System
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/api/health` | Health check |
-| GET | `/api/ollama/status` | Ollama status |
-| POST | `/api/batch/run` | Run full batch |
-
-## Frontend Screens
-
-### Dashboard (`/`)
-- **KPI Cards**: Total Assets, Daily P&L, Active Positions, Today's Signals, Macro Regime, Ollama Status
-- **Signal List**: Recent signals with score bars and type badges
-- **Macro Gauge**: Semi-circular gauge from FEAR to GREED
-- **News Panel**: Filterable news with sentiment indicators
-- **Analysis Pipeline**: Radar chart showing 3-axis scores
-- **Ollama Status**: Model availability and status
-- **Backfill Progress**: News backfill progress tracker
-
-### Macro View (`/macro`)
-- **Large Macro Gauge**: Detailed regime visualization
-- **Trend Charts**: 7 macro indicators over 30 days (recharts)
-- **Leveraged Panel**: TQQQ/SQQQ positions with ON/OFF toggle
-
-## Settings Management
-
-Update settings via the API:
-
+### 3. 환경 설정
 ```bash
-# Change analysis mode
-curl -X PUT http://localhost:8000/api/macro/settings/analysis_mode \
-  -H "Content-Type: application/json" \
-  -d '{"value": "full"}'
-
-# Enable leveraged trading
-curl -X PUT http://localhost:8000/api/macro/settings/leveraged_enabled \
-  -H "Content-Type: application/json" \
-  -d '{"value": "true"}'
-
-# Change max order amount
-curl -X PUT http://localhost:8000/api/macro/settings/max_order_amount \
-  -H "Content-Type: application/json" \
-  -d '{"value": "2000"}'
+cp .env.development .env
+# .env 파일에서 GEMINI_API_KEY 설정
 ```
 
-## Development Guide
+### 4. 백엔드 실행
+```bash
+pip install -r requirements.txt
+python -m uvicorn api.main:app --reload --host 0.0.0.0 --port 8000
+```
 
-### Directory Structure
+### 5. 과거 데이터 로딩
+```bash
+python scripts/load_history.py
+```
+
+### 6. API 테스트
+```bash
+# 헬스체크
+curl http://localhost:8000/health
+
+# 퀴즈 시작
+curl -X POST http://localhost:8000/api/quiz/start
+```
+
+## API 엔드포인트
+
+### 퀴즈
+- `POST /api/quiz/start` - 퀴즈 시작 (기본 질문 반환)
+- `POST /api/quiz/answer` - 기본 질문 답변 제출
+- `POST /api/quiz/terms` - 용어 체크 제출
+- `POST /api/quiz/advanced` - 고급 질문 답변 제출
+- `GET /api/quiz/{session_id}` - 퀴즈 세션 조회
+
+### 시뮬레이션
+- `POST /api/simulation/start` - 시뮬레이션 시작 (랜덤 시나리오)
+- `POST /api/simulation/answer` - 시나리오 답변 제출
+- `POST /api/simulation/complete` - 시뮬레이션 완료 (행동 보정)
+- `GET /api/simulation/{session_id}` - 시뮬레이션 세션 조회
+
+### 공통
+- `GET /health` - 헬스체크
+- `GET /` - 서비스 정보
+
+## 디렉터리 구조
+
 ```
 alphaflow-us/
 ├── api/
-│   ├── core/          # Config, database pool
-│   ├── models/        # SQL schema
-│   ├── routers/       # FastAPI route handlers
-│   ├── services/      # Business logic
-│   └── main.py        # App entry point
-├── frontend/
-│   ├── src/
-│   │   ├── pages/     # Dashboard, MacroView
-│   │   └── components/# Reusable UI components
-│   └── package.json
-├── scripts/           # DB init script
-├── .env.example
+│   ├── core/
+│   │   ├── config.py         # 설정 관리 (pydantic-settings)
+│   │   └── database.py       # asyncpg pool 관리
+│   ├── models/
+│   │   └── schemas.py        # Pydantic 스키마
+│   ├── routers/
+│   │   ├── quiz.py           # 퀴즈 API
+│   │   └── simulation.py     # 시뮬레이션 API
+│   ├── services/
+│   │   ├── quiz_engine.py    # 퀴즈 로직
+│   │   ├── strategy_mapper.py # 전략 매핑
+│   │   ├── simulation_engine.py # 시나리오 정의
+│   │   └── calibrator.py     # 행동 보정
+│   └── main.py               # FastAPI 앱
+├── scripts/
+│   ├── init_db.sql           # DB 스키마
+│   └── load_history.py       # 과거 데이터 로딩
+├── frontend/                  # React 앱 (별도 생성)
+├── docker-compose.yml         # PostgreSQL 컨테이너
 ├── requirements.txt
-├── docker-compose.yml
+├── .env.development
+├── .env.production
 └── README.md
 ```
 
-### Coding Rules
-1. All I/O operations must be `async def`
-2. Database access via `asyncpg` only (no SQLAlchemy)
-3. Type hints required for all functions
-4. Docstrings in Korean, code/variable names in English
-5. External APIs: `try-except` + `logging.error` + graceful degradation
-6. Ollama: `asyncio.Lock` for sequential execution, no concurrent model loading
-7. External APIs: 30s timeout, 3 retries with exponential backoff
-8. Runtime settings from `settings` table (no hardcoding)
-9. Logging via `logging.getLogger(__name__)`
-10. Import order: standard library → third-party → local
+## 데이터베이스 스키마
 
-## License
+### quiz_sessions
+퀴즈 세션 및 결과 저장
+
+### simulation_sessions
+시뮬레이션 세션 및 행동 데이터
+
+### backtest_results
+백테스팅 결과 (향후 구현)
+
+### stress_test_results
+스트레스 테스트 결과 (향후 구현)
+
+### price_history
+ETF 과거 가격 데이터 (10년)
+
+### ai_cache
+AI API 응답 캐시
+
+## 코딩 규칙
+
+1. **비동기 I/O**: 모든 DB/네트워크 작업은 `async def`
+2. **타입 힌트**: 모든 함수에 타입 힌트 필수
+3. **독스트링**: 한국어로 작성, 식별자는 영어
+4. **에러 처리**: `try-except` + `logging.error`
+5. **설정 관리**: 하드코딩 금지, `config.py`에서 관리
+6. **DB 접근**: `asyncpg`만 사용 (SQLAlchemy 없음)
+
+## 환경 변수
+
+| 변수 | 설명 | 기본값 |
+|------|------|--------|
+| ENV | 환경 (development/production) | development |
+| GEMINI_API_KEY | Gemini API 키 | (필수) |
+| DATABASE_URL | PostgreSQL URL | postgresql://alphaflow:alphaflow123@localhost:5432/alphaflow_us |
+| APP_HOST | API 서버 호스트 | 0.0.0.0 |
+| APP_PORT | API 서버 포트 | 8000 |
+| CORS_ORIGINS | CORS 허용 오리진 | http://localhost:5173,http://localhost:3000 |
+| LOG_LEVEL | 로그 레벨 | INFO |
+
+## 향후 계획
+
+- [ ] 백테스팅 엔진 구현
+- [ ] 스트레스 테스트 구현
+- [ ] AI 해설 (Gemini API)
+- [ ] AI 스토리 생성
+- [ ] 프론트엔드 개발 (React + TypeScript)
+- [ ] 차트 시각화
+- [ ] 소셜 공유 기능
+
+## 라이선스
 
 MIT
+
+## 기여
+
+이슈와 PR을 환영합니다!
+
+## 문의
+
+문제가 발생하면 GitHub Issues에 등록해주세요.
