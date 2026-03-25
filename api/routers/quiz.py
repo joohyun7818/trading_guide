@@ -82,7 +82,7 @@ async def submit_answers(request: QuizAnswerRequest):
             await conn.execute(
                 """
                 UPDATE quiz_sessions
-                SET risk_score = $1, answers = $2
+                SET risk_score = $1, quiz_answers = $2
                 WHERE id = $3
                 """,
                 risk_score,

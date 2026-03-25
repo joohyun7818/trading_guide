@@ -6,18 +6,13 @@ import logging
 from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, status
-from pydantic import BaseModel
 
 from api.core.database import get_pool
+from api.models.schemas import BacktestRunRequest
 from api.services import backtester, stress_tester, strategy_mapper
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
-
-
-class BacktestRunRequest(BaseModel):
-    """백테스트 실행 요청"""
-    quiz_session_id: UUID
 
 
 def _parse_json_field(value):

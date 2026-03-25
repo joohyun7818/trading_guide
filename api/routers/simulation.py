@@ -9,6 +9,7 @@ from typing import Dict, List
 from uuid import UUID, uuid4
 
 from fastapi import APIRouter, HTTPException, status
+from pydantic import BaseModel
 
 from api.core.database import get_pool
 from api.models.schemas import (
@@ -221,9 +222,15 @@ async def submit_simulation_answer(request: SimulationAnswerRequest):
         )
 
 
+class SimulationCompleteRequest(BaseModel):
+    """시뮬레이션 완료 요청"""
+    session_id: UUID
+
+
 @router.post("/complete", response_model=SimulationCompleteResponse)
-async def complete_simulation(session_id: UUID):
+async def complete_simulation(request: SimulationCompleteRequest):
     """시뮬레이션 완료 - 행동 점수 보정 및 전략 재매핑"""
+    session_id = request.session_id
     try:
         pool = get_pool()
 

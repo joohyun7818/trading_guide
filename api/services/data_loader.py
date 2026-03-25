@@ -58,12 +58,14 @@ async def _save_price_history(df: pd.DataFrame) -> int:
         async with conn.transaction():
             for _, row in df.iterrows():
                 try:
+                    # DB 스키마: symbol 컬럼 사용 (ticker 컬럼 아님)
+                    symbol = row.get("ticker") or row.get("symbol", "")
                     await conn.execute(
                         """
                         INSERT INTO price_history
-                        (ticker, date, open, high, low, close, volume, adj_close)
+                        (symbol, date, open, high, low, close, volume, adj_close)
                         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-                        ON CONFLICT (ticker, date) DO UPDATE SET
+                        ON CONFLICT (symbol, date) DO UPDATE SET
                             open = EXCLUDED.open,
                             high = EXCLUDED.high,
                             low = EXCLUDED.low,
@@ -71,7 +73,7 @@ async def _save_price_history(df: pd.DataFrame) -> int:
                             volume = EXCLUDED.volume,
                             adj_close = EXCLUDED.adj_close
                         """,
-                        row["ticker"],
+                        symbol,
                         row["date"],
                         float(row["open"]),
                         float(row["high"]),
@@ -82,7 +84,7 @@ async def _save_price_history(df: pd.DataFrame) -> int:
                     )
                     saved += 1
                 except Exception as exc:
-                    logger.error(f"price_history 저장 실패: {exc} (ticker={row['ticker']}, date={row['date']})")
+                    logger.error(f"price_history 저장 실패: {exc} (symbol={row.get('ticker') or row.get('symbol', '')}, date={row['date']})")
 
     return saved
 
@@ -104,7 +106,7 @@ async def load_price_data(symbol: str, start: str, end: str) -> pd.DataFrame:
                 """
                 SELECT date, open, high, low, close, volume, adj_close
                 FROM price_history
-                WHERE ticker = $1 AND date BETWEEN $2 AND $3
+                WHERE symbol = $1 AND date BETWEEN $2 AND $3
                 ORDER BY date
                 """,
                 symbol,
@@ -114,7 +116,7 @@ async def load_price_data(symbol: str, start: str, end: str) -> pd.DataFrame:
 
         if rows:
             df = pd.DataFrame(rows, columns=["date", "open", "high", "low", "close", "volume", "adj_close"])
-            df["ticker"] = symbol
+            df["ticker"] = symbol  # 내부 처리용 ticker 컬럼은 유지
             return df
 
         logger.info(f"{symbol} 캐시 미스, yfinance 다운로드 시도 ({start} ~ {end})")

@@ -66,11 +66,18 @@ async def main():
                     if hasattr(dt, "date"):
                         dt = dt.date()
 
+                    # DB 스키마: symbol 컬럼 사용, ON CONFLICT DO UPDATE로 최신 데이터 반영
                     await conn.execute(
                         """
-                        INSERT INTO price_history (ticker, date, open, high, low, close, volume, adj_close)
+                        INSERT INTO price_history (symbol, date, open, high, low, close, volume, adj_close)
                         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-                        ON CONFLICT (ticker, date) DO NOTHING
+                        ON CONFLICT (symbol, date) DO UPDATE SET
+                            open = EXCLUDED.open,
+                            high = EXCLUDED.high,
+                            low = EXCLUDED.low,
+                            close = EXCLUDED.close,
+                            volume = EXCLUDED.volume,
+                            adj_close = EXCLUDED.adj_close
                         """,
                         ticker,
                         dt,

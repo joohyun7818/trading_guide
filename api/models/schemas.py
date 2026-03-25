@@ -102,7 +102,7 @@ class SimulationCompleteResponse(BaseModel):
 
 class BacktestRunRequest(BaseModel):
     """백테스트 실행 요청"""
-    session_id: UUID
+    quiz_session_id: UUID
 
 
 class BacktestMetrics(BaseModel):

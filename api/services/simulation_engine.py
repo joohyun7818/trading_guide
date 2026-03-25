@@ -7,6 +7,7 @@ import random
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional
 
+import pandas as pd
 import yfinance as yf
 
 logger = logging.getLogger(__name__)
@@ -461,6 +462,7 @@ def get_scenario_chart_data(
         async def get_from_db():
             pool = get_pool()
             async with pool.acquire() as conn:
+                # DB 스키마: symbol 컬럼 사용
                 return await conn.fetch(
                     """
                     SELECT date, open, high, low, close, volume, adj_close
@@ -495,23 +497,41 @@ def get_scenario_chart_data(
 
     try:
         logger.info(f"yfinance에서 데이터 조회: {ticker}, {chart_start}~{chart_end}")
-        df = yf.download(ticker, start=chart_start, end=chart_end, progress=False)
+        df = yf.download(ticker, start=chart_start, end=chart_end, progress=False, auto_adjust=False)
 
         if df.empty:
             logger.warning(f"yfinance 데이터 없음: {ticker}")
             return _build_context_chart(context or {}, chart_end)
 
+        # MultiIndex 컬럼 처리 (yfinance 0.2.x 이상에서 단일 티커도 MultiIndex 반환 가능)
+        if isinstance(df.columns, pd.MultiIndex):
+            df.columns = [col[0] for col in df.columns]
+
+        # 컬럼명 정규화
+        df.columns = [str(col).strip() for col in df.columns]
+
+        # Adj Close 컬럼 확인 및 fallback
+        adj_close_col = next(
+            (c for c in df.columns if c.lower().replace(" ", "_") == "adj_close" or c == "Adj Close"),
+            None
+        )
+
         chart_data = []
         for date, row in df.iterrows():
-            chart_data.append({
-                "date": date.strftime("%Y-%m-%d"),
-                "open": float(row["Open"]),
-                "high": float(row["High"]),
-                "low": float(row["Low"]),
-                "close": float(row["Close"]),
-                "volume": int(row["Volume"]),
-                "adj_close": float(row["Adj Close"])
-            })
+            try:
+                adj_close_val = float(row[adj_close_col]) if adj_close_col and adj_close_col in row else float(row.get("Close", row.get("close", 0)))
+                chart_data.append({
+                    "date": date.strftime("%Y-%m-%d"),
+                    "open": float(row.get("Open", row.get("open", 0))),
+                    "high": float(row.get("High", row.get("high", 0))),
+                    "low": float(row.get("Low", row.get("low", 0))),
+                    "close": float(row.get("Close", row.get("close", 0))),
+                    "volume": int(row.get("Volume", row.get("volume", 0))),
+                    "adj_close": adj_close_val
+                })
+            except (ValueError, TypeError) as row_err:
+                logger.warning(f"행 파싱 실패 ({date}): {row_err}")
+                continue
 
         logger.info(f"yfinance 조회 성공: {ticker}, {len(chart_data)}개")
 
@@ -522,12 +542,19 @@ def get_scenario_chart_data(
                 pool = get_pool()
                 async with pool.acquire() as conn:
                     for data in chart_data:
+                        # DB 스키마: symbol 컬럼 사용, ON CONFLICT DO UPDATE로 최신 데이터 유지
                         await conn.execute(
                             """
                             INSERT INTO price_history
                             (symbol, date, open, high, low, close, volume, adj_close)
                             VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-                            ON CONFLICT (symbol, date) DO NOTHING
+                            ON CONFLICT (symbol, date) DO UPDATE SET
+                                open = EXCLUDED.open,
+                                high = EXCLUDED.high,
+                                low = EXCLUDED.low,
+                                close = EXCLUDED.close,
+                                volume = EXCLUDED.volume,
+                                adj_close = EXCLUDED.adj_close
                             """,
                             ticker,
                             datetime.strptime(data["date"], "%Y-%m-%d").date(),

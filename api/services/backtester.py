@@ -5,7 +5,7 @@ AlphaFlow US v2 - 백테스트 엔진
 import asyncio
 import logging
 from datetime import datetime
-from typing import Dict, Iterable, List, Tuple
+from typing import Dict, Iterable, List, Optional, Tuple
 
 import pandas as pd
 
@@ -94,7 +94,7 @@ def _prepare_returns(price_map: Dict[str, pd.DataFrame], start: datetime, end: d
     return returns
 
 
-def _should_rebalance(current_date: pd.Timestamp, last_rebalance: pd.Timestamp, frequency: str) -> bool:
+def _should_rebalance(current_date: pd.Timestamp, last_rebalance: Optional[pd.Timestamp], frequency: str) -> bool:
     """리밸런싱 여부 판단"""
     if last_rebalance is None:
         return True
@@ -201,9 +201,9 @@ def _simulate(
     equity_value = initial_capital
     benchmark_value = initial_capital
     current_weights: Dict[str, float] = {"cash": 1.0}
-    last_rebalance = None
+    last_rebalance: Optional[pd.Timestamp] = None
     in_stop = False
-    reentry_date = None
+    reentry_date: Optional[pd.Timestamp] = None
     peak_value = equity_value
 
     dates: List[pd.Timestamp] = []
@@ -220,7 +220,11 @@ def _simulate(
         if in_stop:
             daily_ret = 0.0
         else:
-            daily_ret = sum(current_weights.get(sym, 0.0) * row.get(sym, 0.0) for sym in returns_df.columns)
+            # pandas Series에서 .get() 대신 직접 인덱싱 + 예외 처리
+            daily_ret = sum(
+                current_weights.get(sym, 0.0) * (float(row[sym]) if sym in row.index else 0.0)
+                for sym in returns_df.columns
+            )
 
         equity_value *= 1 + daily_ret
         daily_returns.append(daily_ret)
@@ -250,8 +254,9 @@ def _simulate(
             last_rebalance = current_date
             peak_value = max(peak_value, equity_value)
 
-        # 벤치마크
-        benchmark_value *= 1 + spy_returns.loc[current_date]
+        # 벤치마크 (KeyError 방지)
+        spy_ret = float(spy_returns.get(current_date, 0.0))
+        benchmark_value *= 1 + spy_ret
 
         equity_path.append(equity_value)
         benchmark_path.append(benchmark_value)
@@ -304,7 +309,8 @@ async def run_backtest(strategy: Dict, period: str, initial_capital: float = 100
 
     years = PERIOD_YEAR_MAP[period]
     end_date = datetime.utcnow()
-    start_date = end_date - pd.DateOffset(years=years)
+    # pd.DateOffset은 datetime이 아닌 Timestamp를 반환할 수 있으므로 명시적 변환
+    start_date = datetime(end_date.year - years, end_date.month, end_date.day)
 
     return await _run_with_range(strategy, start_date, end_date, period, initial_capital)
 

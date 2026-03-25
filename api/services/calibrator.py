@@ -62,25 +62,45 @@ def calculate_action_risk_score(actions: List[Dict]) -> int:
 
 
 def determine_gap_type(gap: int) -> str:
-    """갭 크기에 따른 유형 결정"""
-    if gap > 15:
-        return "overconfident"
-    if gap < -15:
-        return "underconfident"
-    return "consistent"
+    """갭 크기에 따른 유형 결정
+
+    Returns:
+        str: 'high_risk' | 'moderate_high' | 'aligned' | 'moderate_low' | 'low_risk'
+    """
+    if gap > 25:
+        return "high_risk"      # 실제 행동이 퀴즈보다 훨씬 공격적
+    if gap > 10:
+        return "moderate_high"  # 실제 행동이 퀴즈보다 약간 공격적
+    if gap < -25:
+        return "low_risk"       # 실제 행동이 퀴즈보다 훨씬 보수적
+    if gap < -10:
+        return "moderate_low"   # 실제 행동이 퀴즈보다 약간 보수적
+    return "aligned"            # 퀴즈와 행동이 일치
 
 
 def build_gap_message(gap_type: str, gap: int, quiz_risk_score: int, calibrated_score: int) -> str:
     """Gap 유형별 피드백 메시지 생성"""
-    if gap_type == "overconfident":
+    if gap_type == "high_risk":
         return (
-            f"퀴즈 점수({quiz_risk_score}점)보다 실제 행동이 {gap}p 더 공격적이에요. "
+            f"퀴즈 점수({quiz_risk_score}점)보다 실제 행동이 {gap}p 훨씬 공격적이에요. "
+            f"잠재적 손실 위험이 높으니 반드시 손절 규칙을 설정하고 포지션 크기를 조절하세요. "
+            f"보정된 위험 점수는 {calibrated_score}점입니다."
+        )
+    if gap_type == "moderate_high":
+        return (
+            f"퀴즈 점수({quiz_risk_score}점)보다 실제 행동이 {gap}p 공격적이에요. "
             f"위험 선호가 높으니 손익 관리 규칙을 명확히 설정해 보세요. "
             f"보정된 위험 점수는 {calibrated_score}점입니다."
         )
-    if gap_type == "underconfident":
+    if gap_type == "low_risk":
         return (
-            f"퀴즈 점수({quiz_risk_score}점)보다 실제 행동이 {abs(gap)}p 더 보수적이에요. "
+            f"퀴즈 점수({quiz_risk_score}점)보다 실제 행동이 {abs(gap)}p 훨씬 보수적이에요. "
+            f"지나치게 안전 위주로 행동할 경우 장기 수익 기회를 놓칠 수 있어요. "
+            f"보정된 위험 점수는 {calibrated_score}점입니다."
+        )
+    if gap_type == "moderate_low":
+        return (
+            f"퀴즈 점수({quiz_risk_score}점)보다 실제 행동이 {abs(gap)}p 보수적이에요. "
             f"시장 하락 시 과도한 공포 매도를 피하고 장기 플랜을 점검해 보세요. "
             f"보정된 위험 점수는 {calibrated_score}점입니다."
         )
