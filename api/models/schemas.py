@@ -51,14 +51,28 @@ class QuizResultResponse(BaseModel):
 
 # ================= Simulation Schemas =================
 
+class SimulationStartRequest(BaseModel):
+    """시뮬레이션 시작 요청"""
+    quiz_session_id: UUID
+    scenario_count: Optional[int] = Field(None, description="선택할 시나리오 수 (옵션)")
+
+
 class SimulationScenario(BaseModel):
     """시뮬레이션 시나리오"""
     key: str
     name: str
     description: str
     ticker: str
+    decision_date: str
+    chart_start: str
+    chart_end: str
     question: str
     context: dict
+    news_negative: list[str]
+    news_positive: list[str]
+    market_type: str
+    action_scores: dict[str, int]
+    chart: list[dict] = Field(default_factory=list, description="차트 데이터 (OHLCV)")
 
 
 class SimulationStartResponse(BaseModel):
@@ -79,7 +93,9 @@ class SimulationCompleteResponse(BaseModel):
     action_risk_score: int
     calibrated_risk_score: int
     gap_type: str
+    gap: int
     message: str
+    strategy: "StrategyResponse"
 
 
 # ================= Backtest Schemas =================
@@ -177,3 +193,7 @@ class ErrorResponse(BaseModel):
     """에러 응답"""
     error: str
     detail: Optional[str] = None
+
+
+# Forward reference 해결
+SimulationCompleteResponse.update_forward_refs(StrategyResponse=StrategyResponse)
