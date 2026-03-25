@@ -58,11 +58,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# 라우터 등록 (추후 활성화)
-# from api.routers import quiz, simulation, backtest
-# app.include_router(quiz.router, prefix="/api/quiz", tags=["Quiz"])
-# app.include_router(simulation.router, prefix="/api/simulation", tags=["Simulation"])
-# app.include_router(backtest.router, prefix="/api/backtest", tags=["Backtest"])
+# 라우터 등록
+from api.routers import simulation, backtest
+app.include_router(simulation.router, prefix="/api/simulation", tags=["Simulation"])
+app.include_router(backtest.router, prefix="/api/backtest", tags=["Backtest"])
 
 
 @app.get("/health", response_model=HealthResponse)
