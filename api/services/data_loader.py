@@ -24,7 +24,6 @@ async def _download_price_history(symbol: str, start: str, end: str) -> pd.DataF
         if data.empty:
             return pd.DataFrame()
 
-        # MultiIndex 컬럼(normalize)
         if isinstance(data.columns, pd.MultiIndex):
             data.columns = [col[0] for col in data.columns]
 
@@ -37,12 +36,12 @@ async def _download_price_history(symbol: str, start: str, end: str) -> pd.DataF
         if "adj_close" not in data.columns and "close" in data.columns:
             data["adj_close"] = data["close"]
 
-        data["symbol"] = symbol
+        data["ticker"] = symbol
         return data
 
     try:
         return await asyncio.to_thread(_fetch)
-    except Exception as exc:  # pragma: no cover - 네트워크 오류
+    except Exception as exc:
         logger.error(f"{symbol} 데이터 다운로드 실패: {exc}")
         return pd.DataFrame()
 
@@ -62,9 +61,9 @@ async def _save_price_history(df: pd.DataFrame) -> int:
                     await conn.execute(
                         """
                         INSERT INTO price_history
-                        (symbol, date, open, high, low, close, volume, adj_close)
+                        (ticker, date, open, high, low, close, volume, adj_close)
                         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-                        ON CONFLICT (symbol, date) DO UPDATE SET
+                        ON CONFLICT (ticker, date) DO UPDATE SET
                             open = EXCLUDED.open,
                             high = EXCLUDED.high,
                             low = EXCLUDED.low,
@@ -72,7 +71,7 @@ async def _save_price_history(df: pd.DataFrame) -> int:
                             volume = EXCLUDED.volume,
                             adj_close = EXCLUDED.adj_close
                         """,
-                        row["symbol"],
+                        row["ticker"],
                         row["date"],
                         float(row["open"]),
                         float(row["high"]),
@@ -82,8 +81,8 @@ async def _save_price_history(df: pd.DataFrame) -> int:
                         float(row["adj_close"])
                     )
                     saved += 1
-                except Exception as exc:  # pragma: no cover - DB 오류
-                    logger.error(f"price_history 저장 실패: {exc} (symbol={row['symbol']}, date={row['date']})")
+                except Exception as exc:
+                    logger.error(f"price_history 저장 실패: {exc} (ticker={row['ticker']}, date={row['date']})")
 
     return saved
 
@@ -105,7 +104,7 @@ async def load_price_data(symbol: str, start: str, end: str) -> pd.DataFrame:
                 """
                 SELECT date, open, high, low, close, volume, adj_close
                 FROM price_history
-                WHERE symbol = $1 AND date BETWEEN $2 AND $3
+                WHERE ticker = $1 AND date BETWEEN $2 AND $3
                 ORDER BY date
                 """,
                 symbol,
@@ -115,10 +114,9 @@ async def load_price_data(symbol: str, start: str, end: str) -> pd.DataFrame:
 
         if rows:
             df = pd.DataFrame(rows, columns=["date", "open", "high", "low", "close", "volume", "adj_close"])
-            df["symbol"] = symbol
+            df["ticker"] = symbol
             return df
 
-        # 캐시 미스 -> yfinance 다운로드 후 저장
         logger.info(f"{symbol} 캐시 미스, yfinance 다운로드 시도 ({start} ~ {end})")
         df = await _download_price_history(symbol, start, end)
 
@@ -148,7 +146,7 @@ async def get_etf_data(symbols: List[str], start: str, end: str) -> Dict[str, pd
 
     data: Dict[str, pd.DataFrame] = {}
     for symbol, result in zip(symbols, results):
-        if isinstance(result, Exception):  # pragma: no cover - asyncio 예외
+        if isinstance(result, Exception):
             logger.error(f"{symbol} 데이터 조회 실패: {result}")
             continue
         if not result.empty:

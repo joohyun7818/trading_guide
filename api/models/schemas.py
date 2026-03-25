@@ -196,4 +196,4 @@ class ErrorResponse(BaseModel):
 
 
 # Forward reference 해결
-SimulationCompleteResponse.update_forward_refs(StrategyResponse=StrategyResponse)
+SimulationCompleteResponse.model_rebuild()
