@@ -6,7 +6,6 @@ yfinance를 사용하여 S&P 500 ETF 및 주요 섹터 ETF의 10년 데이터를
 import asyncio
 import logging
 from datetime import datetime, timedelta
-from typing import List
 
 import asyncpg
 import pandas as pd
@@ -25,20 +24,20 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# 로드할 ETF 목록
+# 로딩할 ETF 목록
 TICKERS = [
-    "SPY",   # S&P 500
-    "QQQ",   # Nasdaq 100
-    "XLF",   # Financial
-    "XLE",   # Energy
-    "XLV",   # Healthcare
-    "XLK",   # Technology
-    "XLI",   # Industrial
-    "XLP",   # Consumer Staples
-    "XLU",   # Utilities
-    "XLRE",  # Real Estate
-    "XLC",   # Communication Services
-    "XLB",   # Materials
+    "SPY",    # S&P 500
+    "QQQ",    # Nasdaq 100
+    "XLF",    # Financial
+    "XLE",    # Energy
+    "XLV",    # Healthcare
+    "XLK",    # Technology
+    "XLI",    # Industrial
+    "XLP",    # Consumer Staples
+    "XLU",    # Utilities
+    "XLRE",   # Real Estate
+    "XLC",    # Communication Services
+    "XLB",    # Materials
     "XLY"    # Consumer Discretionary
 ]
 
@@ -57,23 +56,40 @@ async def fetch_price_data(ticker: str, start_date: str, end_date: str) -> pd.Da
     logger.info(f"{ticker} 데이터 다운로드 중... ({start_date} ~ {end_date})")
 
     try:
-        # yfinance는 동기 API이므로 비동기 컨텍스트에서 실행
         loop = asyncio.get_event_loop()
         data = await loop.run_in_executor(
             None,
-            lambda: yf.download(ticker, start=start_date, end=end_date, progress=False)
+            lambda: yf.download(
+                ticker,
+                start=start_date,
+                end=end_date,
+                progress=False,
+                auto_adjust=False
+            )
         )
 
         if data.empty:
             logger.warning(f"{ticker} 데이터가 비어있습니다.")
             return pd.DataFrame()
 
-        # 컬럼명 정규화
+        # MultiIndex 컬럼 처리 (yfinance 최신 버전 대응)
+        if isinstance(data.columns, pd.MultiIndex):
+            data.columns = [col[0] for col in data.columns]
+
+        # 컬럼명 소문자 + 언더스코어 정규화
         data.columns = [col.lower().replace(" ", "_") for col in data.columns]
         data = data.reset_index()
         data["symbol"] = ticker
 
-        logger.info(f"{ticker} 데이터 {len(data)}개 로드 완료")
+        # date 컬럼 정규화
+        if "date" not in data.columns and "datetime" in data.columns:
+            data = data.rename(columns={"datetime": "date"})
+
+        # adj_close가 없으면 close를 사용
+        if "adj_close" not in data.columns:
+            data["adj_close"] = data["close"]
+
+        logger.info(f"{ticker} 데이터 {len(data)}개 로딩 완료")
         return data
 
     except Exception as e:
@@ -130,8 +146,7 @@ async def save_to_database(pool: asyncpg.Pool, df: pd.DataFrame) -> int:
 
 
 async def load_all_history():
-    """모든 ETF의 10년 과거 데이터 로드"""
-    # 날짜 계산
+    """모든 ETF의 10년 과거 데이터 로딩"""
     end_date = datetime.now()
     start_date = end_date - timedelta(days=365 * 10)
 
