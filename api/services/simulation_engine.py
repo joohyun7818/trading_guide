@@ -3,14 +3,17 @@ AlphaFlow US v2 - 시뮬레이션 엔진
 과거 시장 상황 기반 매매 판단 시뮬레이션
 """
 import logging
-from typing import Dict, List
 import random
+from datetime import datetime, timedelta
+from typing import Dict, List, Optional
+
+import yfinance as yf
 
 logger = logging.getLogger(__name__)
 
 # ==================== 시나리오 정의 ====================
 
-SCENARIOS = {
+SCENARIOS: Dict[str, Dict] = {
     "covid_crash_week2": {
         "key": "covid_crash_week2",
         "name": "코로나 폭락 2주차",
@@ -27,13 +30,13 @@ SCENARIOS = {
             "change_1w": -15.4
         },
         "news_negative": [
-            "WHO, 코로나19 팬데믹 선언",
-            "미국 유럽발 입국 30일 금지",
-            "NYSE 서킷브레이커 이번 주 두 번째 발동"
+            "2020-03-11: WHO, 코로나19 팬데믹 선언",
+            "2020-03-12: 미국, 유럽발 입국 30일 금지",
+            "2020-03-09: NYSE 서킷브레이커 이번 주 두 번째 발동"
         ],
         "news_positive": [
-            "Fed, 1.5조 달러 유동성 공급 발표",
-            "트럼프 대통령, 국가비상사태 선포 (경기 부양 기대)"
+            "2020-03-12: Fed, 1.5조 달러 유동성 공급 발표",
+            "2020-03-13: 트럼프, 국가비상사태 선포 (경기 부양 기대)"
         ],
         "question": "이 상황에서 SPY(S&P500 ETF)를 매수하시겠습니까?",
         "aftermath": {
@@ -66,13 +69,13 @@ SCENARIOS = {
             "change_1w": -6.9
         },
         "news_negative": [
-            "실업률 8.1%로 급등, 25년 만에 최고치",
-            "GM, 파산 신청 임박",
-            "주택 압류 건수 역대 최고"
+            "2009-03-06: 실업률 8.1%로 급등, 25년 만에 최고치",
+            "2009-02-17: GM, 파산 신청 임박 뉴스 확산",
+            "2009-02-10: 주택 압류 건수 역대 최고"
         ],
         "news_positive": [
-            "오바마, 7870억 달러 경기부양책 승인",
-            "Fed, 기준금리 0~0.25%로 사실상 제로금리"
+            "2009-02-17: 오바마, 7870억 달러 경기부양책 승인",
+            "2008-12-16: Fed, 기준금리 0~0.25%로 사실상 제로금리"
         ],
         "question": "이 상황에서 SPY(S&P500 ETF)를 매수하시겠습니까?",
         "aftermath": {
@@ -105,13 +108,13 @@ SCENARIOS = {
             "change_1w": 10.1
         },
         "news_negative": [
-            "미국 코로나 확진자 세계 1위",
-            "실업수당 청구 330만 건, 역대 최대"
+            "2020-03-26: 미국 코로나 확진자 세계 1위",
+            "2020-03-26: 실업수당 청구 330만 건, 역대 최대"
         ],
         "news_positive": [
-            "미 의회, 2조 달러 경기부양안 통과",
-            "Fed, 무제한 양적완화 발표",
-            "기술주 중심으로 강한 반등세"
+            "2020-03-25: 미 의회, 2조 달러 경기부양안 합의",
+            "2020-03-23: Fed, 무제한 양적완화 발표",
+            "2020-03-24: 기술주 중심 반등세 시작"
         ],
         "question": "이 상황에서 QQQ(나스닥100 ETF)를 매수하시겠습니까?",
         "aftermath": {
@@ -144,13 +147,13 @@ SCENARIOS = {
             "change_1w": -5.6
         },
         "news_negative": [
-            "12월 CPI 7.0%, 40년 만에 최고",
-            "Fed, 3월 금리인상 시사",
-            "고성장 기술주 급락세"
+            "2022-01-12: 12월 CPI 7.0%, 40년 만에 최고",
+            "2022-01-05: Fed, 3월 금리인상 시사 (의사록)",
+            "2022-01-10: 고성장 기술주 급락세"
         ],
         "news_positive": [
-            "기업 실적은 여전히 양호",
-            "백신 보급으로 경제 정상화 기대"
+            "2022-01-13: 일부 기업 실적 양호",
+            "2022-01-10: 백신 보급으로 경제 정상화 기대"
         ],
         "question": "이 상황에서 QQQ(나스닥100 ETF)를 매수하시겠습니까?",
         "aftermath": {
@@ -183,13 +186,13 @@ SCENARIOS = {
             "change_1w": 4.1
         },
         "news_negative": [
-            "Fed, 금리동결 시사하지만 추가 인상 가능성",
-            "채무한도 협상 불확실성"
+            "2023-05-24: Fed, 금리동결 시사하지만 추가 인상 가능성 언급",
+            "2023-05-23: 채무한도 협상 불확실성"
         ],
         "news_positive": [
-            "엔비디아 실적 서프라이즈, 주가 24% 급등",
-            "AI 관련주 랠리 지속",
-            "빅테크 실적 개선세"
+            "2023-05-25: 엔비디아 실적 서프라이즈, 주가 24% 급등",
+            "2023-05-26: AI 관련주 랠리 지속",
+            "2023-05-10: 빅테크 실적 개선세"
         ],
         "question": "이 상황에서 QQQ(나스닥100 ETF)를 매수하시겠습니까?",
         "aftermath": {
@@ -222,14 +225,14 @@ SCENARIOS = {
             "change_1w": 1.8
         },
         "news_negative": [
-            "나스닥 P/E 비율 역대 최고치",
-            "실적 없는 닷컴 기업들 고평가 우려",
-            "Fed 금리인상 지속"
+            "2000-03-07: 나스닥 P/E 비율 역대 최고치",
+            "2000-03-08: 실적 없는 닷컴 기업 고평가 우려",
+            "2000-02-02: Fed 금리인상 지속"
         ],
         "news_positive": [
-            "인터넷 혁명으로 새로운 시대 개막",
-            "닷컴 IPO 열풍 지속",
-            "투자자 FOMO 극대화"
+            "2000-03-09: 인터넷 혁명으로 새로운 시대 기대",
+            "2000-03-07: 닷컴 IPO 열풍 지속",
+            "2000-03-06: 투자자 FOMO 극대화"
         ],
         "question": "이 상황에서 SPY(S&P500 ETF)를 매수하시겠습니까?",
         "aftermath": {
@@ -262,14 +265,14 @@ SCENARIOS = {
             "change_1w": -3.3
         },
         "news_negative": [
-            "중국 증시 폭락, 상하이 지수 8.5% 급락",
-            "중국 위안화 평가절하",
-            "신흥국 경제 불안"
+            "2015-08-24: 중국 증시 폭락, 상하이 지수 8.5% 급락",
+            "2015-08-11: 중국 위안화 전격 평가절하",
+            "2015-08-17: 신흥국 경제 불안 확대"
         ],
         "news_positive": [
-            "미국 경제는 견조한 성장세",
-            "기업 실적 양호",
-            "Fed 금리인상 지연 가능성"
+            "2015-08-15: 미국 경제는 견조한 성장세 유지",
+            "2015-08-10: 기업 실적 양호",
+            "2015-08-19: Fed 금리인상 지연 가능성 대두"
         ],
         "question": "이 상황에서 SPY(S&P500 ETF)를 매수하시겠습니까?",
         "aftermath": {
@@ -302,14 +305,14 @@ SCENARIOS = {
             "change_1w": -6.7
         },
         "news_negative": [
-            "전날 다우지수 장중 9% 급락 (역대급)",
-            "그리스 재정위기 악화",
-            "유럽 금융 불안 확산"
+            "2010-05-06: 다우지수 장중 9% 급락 (플래시 크래시)",
+            "2010-05-05: 그리스 재정위기 악화",
+            "2010-05-04: 유럽 금융 불안 확산"
         ],
         "news_positive": [
-            "SEC, 플래시 크래시는 일시적 현상으로 판단",
-            "시장 회로 차단 장치 개선 논의",
-            "미국 경제 펀더멘털은 양호"
+            "2010-05-07: SEC, 플래시 크래시는 일시적 현상으로 판단",
+            "2010-05-07: 시장 회로 차단 장치 개선 논의",
+            "2010-05-06: 미국 경제 펀더멘털은 양호"
         ],
         "question": "이 상황에서 SPY(S&P500 ETF)를 매수하시겠습니까?",
         "aftermath": {
@@ -337,68 +340,37 @@ def get_all_scenarios() -> List[Dict]:
 
 
 def get_random_scenarios(count: int = 5) -> List[Dict]:
-    """랜덤으로 N개 시나리오 선택
-
-    Args:
-        count: 선택할 시나리오 개수
-
-    Returns:
-        List[Dict]: 선택된 시나리오 목록
-    """
+    """랜덤으로 N개 시나리오 선택"""
     all_scenarios = list(SCENARIOS.values())
     if count >= len(all_scenarios):
         return all_scenarios
-
     selected = random.sample(all_scenarios, count)
     logger.info(f"{count}개 시나리오 선택: {[s['key'] for s in selected]}")
     return selected
 
 
 def get_scenario_by_key(key: str) -> Dict:
-    """키로 시나리오 조회
-
-    Args:
-        key: 시나리오 키
-
-    Returns:
-        Dict: 시나리오 데이터
-    """
+    """키로 시나리오 조회"""
     if key in SCENARIOS:
         return SCENARIOS[key]
-
     logger.warning(f"시나리오를 찾을 수 없음: {key}")
     return {}
 
 
 def select_scenarios(risk_score: int, expertise_level: str) -> List[Dict]:
-    """사용자의 위험 점수와 전문성 수준에 따라 시나리오 선택
-
-    Args:
-        risk_score: 위험 성향 점수 (0~100)
-        expertise_level: 전문성 수준 ('beginner', 'intermediate', 'advanced')
-
-    Returns:
-        List[Dict]: 선택된 시나리오 목록
-    """
-    # 전문성 수준에 따른 시나리오 개수 결정
+    """사용자의 위험 점수와 전문성 수준에 따라 시나리오 선택"""
     if expertise_level == "beginner":
-        count = 2
-        # 극단적 사례: 코로나 폭락 + AI 랠리
         selected = [
             SCENARIOS["covid_crash_week2"],
             SCENARIOS["ai_rally_2023"]
         ]
     elif expertise_level == "intermediate":
-        count = 3
-        # 위 + 2008 바닥
         selected = [
             SCENARIOS["covid_crash_week2"],
             SCENARIOS["ai_rally_2023"],
             SCENARIOS["gfc_2008_bottom"]
         ]
-    else:  # advanced
-        count = 5
-        # 위 + 횡보 + 닷컴 정점
+    else:
         selected = [
             SCENARIOS["covid_crash_week2"],
             SCENARIOS["ai_rally_2023"],
@@ -409,10 +381,9 @@ def select_scenarios(risk_score: int, expertise_level: str) -> List[Dict]:
 
     logger.info(
         f"시나리오 선택: risk_score={risk_score}, expertise={expertise_level}, "
-        f"count={count}, scenarios={[s['key'] for s in selected]}"
+        f"count={len(selected)}, scenarios={[s['key'] for s in selected]}"
     )
 
-    # 반드시 하락장 1개 이상 + 상승장 1개 이상 포함 검증
     market_types = [s.get("market_type") for s in selected]
     has_down = any(mt == "down" for mt in market_types)
     has_up = any(mt == "up" for mt in market_types)
@@ -425,29 +396,72 @@ def select_scenarios(risk_score: int, expertise_level: str) -> List[Dict]:
     return selected
 
 
-def get_scenario_chart_data(ticker: str, chart_start: str, chart_end: str) -> List[Dict]:
-    """시나리오 차트용 가격 데이터 조회
+def _build_context_chart(context: Dict, chart_end: str) -> List[Dict]:
+    """컨텍스트 데이터를 이용해 간이 차트 생성"""
+    try:
+        end_date = datetime.strptime(chart_end, "%Y-%m-%d").date()
+    except ValueError:
+        return []
 
-    Args:
-        ticker: 티커 심볼 (예: SPY, QQQ)
-        chart_start: 차트 시작일 (YYYY-MM-DD)
-        chart_end: 차트 종료일 (YYYY-MM-DD)
+    points = []
+    context_points = [
+        ("-1m", context.get("price_1m_ago")),
+        ("-1w", context.get("price_1w_ago")),
+        ("now", context.get("price_now"))
+    ]
 
-    Returns:
-        List[Dict]: OHLCV 데이터 리스트
-    """
-    import yfinance as yf
-    from datetime import datetime
+    for label, price in context_points:
+        if price is None:
+            continue
+        if label == "-1m":
+            date = end_date - timedelta(days=30)
+        elif label == "-1w":
+            date = end_date - timedelta(days=7)
+        else:
+            date = end_date
+
+        points.append({
+            "date": date.isoformat(),
+            "open": float(price),
+            "high": float(price),
+            "low": float(price),
+            "close": float(price),
+            "volume": 0,
+            "adj_close": float(price)
+        })
+
+    return sorted(points, key=lambda x: x["date"])
+
+
+def _run_async(coro):
+    """비동기 함수를 동기적으로 안전하게 실행"""
+    import asyncio
 
     try:
-        # DB에서 먼저 조회 시도
+        return asyncio.run(coro)
+    except RuntimeError:
+        loop = asyncio.new_event_loop()
+        try:
+            return loop.run_until_complete(coro)
+        finally:
+            loop.close()
+
+
+def get_scenario_chart_data(
+    ticker: str,
+    chart_start: str,
+    chart_end: str,
+    context: Optional[Dict] = None
+) -> List[Dict]:
+    """시나리오 차트용 가격 데이터 조회 (DB 우선, 실패 시 yfinance, 마지막으로 컨텍스트)"""
+    try:
         from api.core.database import get_pool
         import asyncio
 
         async def get_from_db():
             pool = get_pool()
             async with pool.acquire() as conn:
-                rows = await conn.fetch(
+                return await conn.fetch(
                     """
                     SELECT date, open, high, low, close, volume, adj_close
                     FROM price_history
@@ -458,15 +472,10 @@ def get_scenario_chart_data(ticker: str, chart_start: str, chart_end: str) -> Li
                     datetime.strptime(chart_start, "%Y-%m-%d").date(),
                     datetime.strptime(chart_end, "%Y-%m-%d").date()
                 )
-                return rows
 
-        # 비동기 함수를 동기적으로 실행
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        db_rows = loop.run_until_complete(get_from_db())
-        loop.close()
+        db_rows = _run_async(get_from_db())
 
-        if db_rows and len(db_rows) > 0:
+        if db_rows:
             logger.info(f"DB에서 차트 데이터 조회 성공: {ticker}, {len(db_rows)}개")
             return [
                 {
@@ -484,16 +493,14 @@ def get_scenario_chart_data(ticker: str, chart_start: str, chart_end: str) -> Li
     except Exception as e:
         logger.warning(f"DB 조회 실패, yfinance로 전환: {e}")
 
-    # yfinance에서 조회
     try:
         logger.info(f"yfinance에서 데이터 조회: {ticker}, {chart_start}~{chart_end}")
         df = yf.download(ticker, start=chart_start, end=chart_end, progress=False)
 
         if df.empty:
             logger.warning(f"yfinance 데이터 없음: {ticker}")
-            return []
+            return _build_context_chart(context or {}, chart_end)
 
-        # DataFrame을 딕셔너리 리스트로 변환
         chart_data = []
         for date, row in df.iterrows():
             chart_data.append({
@@ -508,8 +515,9 @@ def get_scenario_chart_data(ticker: str, chart_start: str, chart_end: str) -> Li
 
         logger.info(f"yfinance 조회 성공: {ticker}, {len(chart_data)}개")
 
-        # DB에 저장 (비동기)
         try:
+            import asyncio
+
             async def save_to_db():
                 pool = get_pool()
                 async with pool.acquire() as conn:
@@ -531,10 +539,7 @@ def get_scenario_chart_data(ticker: str, chart_start: str, chart_end: str) -> Li
                             data["adj_close"]
                         )
 
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            loop.run_until_complete(save_to_db())
-            loop.close()
+            _run_async(save_to_db())
             logger.info(f"DB 저장 완료: {ticker}, {len(chart_data)}개")
 
         except Exception as e:
@@ -544,21 +549,12 @@ def get_scenario_chart_data(ticker: str, chart_start: str, chart_end: str) -> Li
 
     except Exception as e:
         logger.error(f"yfinance 조회 실패: {e}")
-        return []
+        return _build_context_chart(context or {}, chart_end)
 
 
 def calculate_action_score(scenario_key: str, action: str) -> int:
-    """행동 점수 계산
-
-    Args:
-        scenario_key: 시나리오 키
-        action: 'buy', 'hold', 'sell'
-
-    Returns:
-        int: 행동 점수 (1~5)
-    """
+    """행동 점수 계산 (매수=5, 홀드=3, 매도=1 등 시나리오별 정의 활용)"""
     scenario = get_scenario_by_key(scenario_key)
     if not scenario or "action_scores" not in scenario:
-        return 3  # 기본값
-
+        return 3
     return scenario["action_scores"].get(action, 3)
