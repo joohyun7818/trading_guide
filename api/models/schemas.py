@@ -2,7 +2,7 @@
 AlphaFlow US v2 - Pydantic 스키마
 Request/Response 모델 정의
 """
-from typing import Literal, Optional
+from typing import Any, Dict, List, Literal, Optional
 from uuid import UUID
 from pydantic import BaseModel, Field
 
@@ -141,7 +141,7 @@ class AICommentaryResponse(BaseModel):
     """AI 코멘터리 응답"""
     headline: str
     summary: str
-    period_analysis: str
+    period_analysis: List[Dict[str, str]]
     risk_warning: str
     fun_fact: str
 
@@ -158,6 +158,40 @@ class AIImageResponse(BaseModel):
     """AI 이미지 생성 응답"""
     image_url: Optional[str] = None
     placeholder: Optional[str] = None
+    mime_type: Optional[str] = None
+
+
+class AIStrategyRequest(BaseModel):
+    """AI 전략 설계 요청"""
+    quiz_session_id: UUID
+
+
+class AICommentaryRequest(BaseModel):
+    """AI 코멘터리 요청"""
+    quiz_session_id: UUID
+
+
+class AIStoryRequest(BaseModel):
+    """AI 스토리 요청"""
+    quiz_session_id: UUID
+
+
+class AIImageRequest(BaseModel):
+    """AI 이미지 요청"""
+    quiz_session_id: UUID
+
+
+class AINewsCurationRequest(BaseModel):
+    """뉴스 큐레이션 요청"""
+    quiz_session_id: UUID
+    scenario_key: str
+
+
+class AIStrategyDesignResponse(BaseModel):
+    """전략 설계 + 검증 응답"""
+    quiz_session_id: UUID
+    strategy: Dict[str, Any]
+    validations: List[Dict[str, Any]]
 
 
 # ================= Strategy Schemas =================

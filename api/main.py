@@ -50,10 +50,11 @@ app.add_middleware(
 )
 
 # ===== 라우터 등록 =====
-from api.routers import quiz, simulation, backtest
+from api.routers import ai, backtest, quiz, simulation
 app.include_router(quiz.router, prefix="/api/quiz", tags=["Quiz"])
 app.include_router(simulation.router, prefix="/api/simulation", tags=["Simulation"])
 app.include_router(backtest.router, prefix="/api/backtest", tags=["Backtest"])
+app.include_router(ai.router, prefix="/api/ai", tags=["AI"])
 
 
 @app.get("/health", response_model=HealthResponse)
