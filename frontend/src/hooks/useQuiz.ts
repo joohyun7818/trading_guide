@@ -99,7 +99,6 @@ const fallbackAdvancedQuestions: QuizQuestion[] = [
 
 // 세션 ID 저장/조회
 const SESSION_KEY = 'alphaflow-session'
-const SIM_SESSION_KEY = 'alphaflow-sim-session'
 
 const persistSessionId = (id: string) => {
   if (id && id !== 'local') localStorage.setItem(SESSION_KEY, id)

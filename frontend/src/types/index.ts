@@ -1,6 +1,7 @@
 // ==================== 공통 ====================
 
 export type QuizStage = 'quiz' | 'terms' | 'advanced' | 'simulation' | 'loading' | 'results'
+export type DetailLevel = 'beginner' | 'intermediate' | 'advanced'
 
 export interface Allocation {
   stocks: number
@@ -73,7 +74,7 @@ export interface QuizResultResponse {
   risk_score: number
   expertise_level: string
   strategy_key: string
-  detail_level: string
+  detail_level: DetailLevel
 }
 
 // 프론트엔드 내부 세션 상태
@@ -222,6 +223,8 @@ export interface BacktestMetricsResponse {
   best_month: number
   worst_month: number
   benchmark_return: number
+  annual_return?: number
+  volatility?: number
 }
 
 // 백엔드 단일 기간 백테스트 결과
@@ -230,6 +233,7 @@ export interface BacktestPeriodResult {
   metrics: BacktestMetricsResponse
   daily_equity: PerformancePoint[]
   benchmark_equity: PerformancePoint[]
+  allocation?: Allocation
 }
 
 // 프론트엔드 내부용 (표시용)
@@ -245,6 +249,7 @@ export interface BacktestResult {
   benchmarkCurve?: PerformancePoint[]
   allocation?: Allocation
   periods?: BacktestPeriodResult[]
+  detailLevel?: DetailLevel
 }
 
 // ==================== 스트레스 테스트 ====================
@@ -266,25 +271,28 @@ export interface StressPeriodResult {
 export interface StressTestResult {
   sessionId: string
   periods: StressPeriodResult[]
+  detailLevel?: DetailLevel
 }
 
 // ==================== AI 응답 ====================
 
 export interface CommentaryResponse {
-  sessionId: string
-  headline?: string
+  headline: string
   summary: string
-  bullets?: string[]
+  period_analysis?: Array<{ period?: string; insight?: string; title?: string }>
+  risk_warning?: string
+  fun_fact?: string
 }
 
 export interface StoryResponse {
-  sessionId: string
-  summary: string
-  tone?: string
+  title: string
+  story: string
+  lesson: string
+  emoji: string
 }
 
 export interface ImageResponse {
-  sessionId: string
-  url: string
-  alt: string
+  image_url?: string
+  placeholder?: string
+  mime_type?: string
 }

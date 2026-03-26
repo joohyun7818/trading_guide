@@ -14,6 +14,7 @@ import type {
   StressTestResult,
   StressPeriodResult,
   PerformancePoint,
+  DetailLevel,
 } from '../types'
 
 const SESSION_KEY = 'alphaflow-session'
@@ -55,6 +56,7 @@ function toFrontBacktest(periods: BacktestPeriodResult[], sessionId: string): Ba
 function toFrontStressTest(
   results: StressPeriodResult[],
   sessionId: string,
+  detailLevel?: DetailLevel,
 ): StressTestResult {
   const periods: StressPeriodResult[] = results.map((r) => ({
     // 백엔드 필드 유지
@@ -69,7 +71,7 @@ function toFrontStressTest(
     return: r.my_return ?? 0,
     recoveryMonths: r.recovery_months ?? undefined,
   }))
-  return { sessionId, periods }
+  return { sessionId, periods, detailLevel }
 }
 
 export function useBacktest() {
@@ -137,7 +139,8 @@ export function useBacktest() {
       setError(null)
       try {
         const response = await runStressTest(target)
-        const result = toFrontStressTest(response.results, target)
+        const detail = (response as { detail_level?: DetailLevel }).detail_level
+        const result = toFrontStressTest(response.results, target, detail)
         setStress(result)
         return result
       } catch {

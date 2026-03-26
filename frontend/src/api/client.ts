@@ -13,6 +13,9 @@ import type {
   SimulationCompleteResponse,
   BacktestPeriodResult,
   StressPeriodResult,
+  CommentaryResponse,
+  StoryResponse,
+  ImageResponse,
 } from '../types'
 
 const client = axios.create({
@@ -99,5 +102,19 @@ export const getBacktestResultByPeriod = async (quiz_session_id: string, period:
 /** GET /api/backtest/stress/{quiz_session_id} - 스트레스 테스트 결과 조회 */
 export const getStressResults = async (quiz_session_id: string) =>
   unwrap<StressPeriodResult[]>(client.get(`/backtest/stress/${quiz_session_id}`))
+
+// ==================== AI API ====================
+
+/** POST /api/ai/commentary - AI 코멘터리 생성 */
+export const getCommentary = async (quiz_session_id: string) =>
+  unwrap<CommentaryResponse>(client.post('/ai/commentary', { quiz_session_id }))
+
+/** POST /api/ai/story/{period_key} - 스트레스 구간 스토리텔링 */
+export const getStory = async (quiz_session_id: string, period_key: string) =>
+  unwrap<StoryResponse>(client.post(`/ai/story/${period_key}`, { quiz_session_id }))
+
+/** POST /api/ai/image - 전략 캐릭터 이미지 생성 */
+export const getImage = async (quiz_session_id: string) =>
+  unwrap<ImageResponse>(client.post('/ai/image', { quiz_session_id }))
 
 export default client

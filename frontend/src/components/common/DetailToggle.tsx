@@ -1,6 +1,5 @@
 import { useMemo } from 'react'
-
-export type DetailLevel = 'beginner' | 'intermediate' | 'advanced'
+import type { DetailLevel } from '../../types'
 
 interface DetailToggleProps {
   value: DetailLevel

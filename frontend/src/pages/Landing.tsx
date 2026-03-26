@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom'
 import { DetailToggle } from '../components/common/DetailToggle'
-import type { DetailLevel } from '../components/common/DetailToggle'
+import type { DetailLevel } from '../types'
 
 const steps = [
   { title: '성향 파악', desc: '퀴즈와 용어 체크로 당신의 위험 성향을 정밀 측정' },

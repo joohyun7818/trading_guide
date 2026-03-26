@@ -105,7 +105,7 @@ export function useSimulation() {
         setCurrentIndex(0)
         setAftermathMap({})
         return newSession
-      } catch (err) {
+      } catch {
         setError('시뮬레이션을 불러오는 데 실패했습니다. 샘플 시나리오로 진행합니다.')
         const fallback: SimulationSession = {
           sessionId: targetId,

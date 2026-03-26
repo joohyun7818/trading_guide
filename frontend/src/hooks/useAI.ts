@@ -4,6 +4,7 @@
  * 현재는 미구현 상태로, 모든 요청은 빈 응답을 반환합니다.
  */
 import { useCallback, useMemo, useState } from 'react'
+import { getCommentary, getImage, getStory } from '../api/client'
 import type { CommentaryResponse, ImageResponse, StoryResponse } from '../types'
 
 const SESSION_KEY = 'alphaflow-session'
@@ -12,43 +13,75 @@ export function useAI() {
   const [commentary, setCommentary] = useState<CommentaryResponse | null>(null)
   const [story, setStory] = useState<StoryResponse | null>(null)
   const [image, setImage] = useState<ImageResponse | null>(null)
-  const [loading] = useState(false)
-  const [error] = useState<string | null>(null)
+  const [loadingCount, setLoadingCount] = useState(0)
+  const [error, setError] = useState<string | null>(null)
 
   const sessionId = useMemo(
     () => localStorage.getItem(SESSION_KEY) || 'local',
     [],
   )
 
-  // AI 엔드포인트는 아직 미구현 상태입니다.
-  // 백엔드에 /api/ai/commentary, /api/ai/story, /api/ai/image 엔드포인트가
-  // 구현되면 아래 주석을 해제하세요.
+  const startLoading = () => setLoadingCount((c) => c + 1)
+  const endLoading = () => setLoadingCount((c) => Math.max(0, c - 1))
 
   const fetchCommentary = useCallback(
-    async (_id?: string) => {
-      // TODO: AI 엔드포인트 구현 후 활성화
-      // const target = _id || sessionId
-      // const data = await client.get(`/ai/commentary/${target}`)
-      // setCommentary(data.data)
-      return null
+    async (_id?: string): Promise<CommentaryResponse | null> => {
+      const target = _id || sessionId
+      if (!target || target === 'local') return null
+      startLoading()
+      setError(null)
+      try {
+        const data = await getCommentary(target)
+        setCommentary(data)
+        return data
+      } catch {
+        setError('AI 코멘터리를 불러오지 못했습니다.')
+        return null
+      } finally {
+        endLoading()
+      }
     },
-    [],
+    [sessionId],
   )
 
   const fetchStory = useCallback(
-    async (_id?: string) => {
-      // TODO: AI 엔드포인트 구현 후 활성화
-      return null
+    async (periodKey: string, _id?: string): Promise<StoryResponse | null> => {
+      const target = _id || sessionId
+      if (!target || target === 'local') return null
+      startLoading()
+      setError(null)
+      try {
+        const data = await getStory(target, periodKey)
+        setStory(data)
+        return data
+      } catch {
+        setError('AI 스토리를 불러오지 못했습니다.')
+        return null
+      } finally {
+        endLoading()
+      }
     },
-    [],
+    [sessionId],
   )
 
   const fetchImage = useCallback(
-    async (_id?: string) => {
-      // TODO: AI 엔드포인트 구현 후 활성화
-      return null
+    async (_id?: string): Promise<ImageResponse | null> => {
+      const target = _id || sessionId
+      if (!target || target === 'local') return null
+      startLoading()
+      setError(null)
+      try {
+        const data = await getImage(target)
+        setImage(data)
+        return data
+      } catch {
+        setError('AI 이미지를 불러오지 못했습니다.')
+        return null
+      } finally {
+        endLoading()
+      }
     },
-    [],
+    [sessionId],
   )
 
   return {
@@ -56,7 +89,7 @@ export function useAI() {
     commentary,
     story,
     image,
-    loading,
+    loading: loadingCount > 0,
     error,
     fetchCommentary,
     fetchStory,
