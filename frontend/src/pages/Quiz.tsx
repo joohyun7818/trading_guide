@@ -47,13 +47,6 @@ export default function QuizPage() {
     }
   }, [stage, navigate, sessionId])
 
-  useEffect(() => {
-    setSlide('enter')
-    if (stage === 'quiz') setQuizIndex(0)
-    if (stage === 'terms') setTermIndex(0)
-    if (stage === 'advanced') setAdvancedIndex(0)
-  }, [stage])
-
   const totalQuestions = showAdvanced ? 10 : 5
   const currentStepLabel = stage === 'simulation' || stage === 'loading' ? 'simulation' : stage === 'results' ? 'results' : 'quiz'
 
