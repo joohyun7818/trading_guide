@@ -1,18 +1,17 @@
-import { useEffect } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ProgressBar } from '../components/common/ProgressBar'
+import { QuizCard } from '../components/quiz/QuizCard'
+import { TermCheck } from '../components/quiz/TermCheck'
+import { QuizProgress } from '../components/quiz/QuizProgress'
+import { RiskScoreReveal } from '../components/quiz/RiskScoreReveal'
 import { LoadingSpinner } from '../components/common/LoadingSpinner'
-import { Tooltip } from '../components/common/Tooltip'
 import { useQuiz } from '../hooks/useQuiz'
 
-const stageLabel: Record<string, string> = {
-  quiz: '기본 질문 (Q1~Q5)',
-  terms: '용어 체크 (T1~T5)',
-  advanced: '고급 질문 (Q6~Q10)',
-  simulation: '시뮬레이션 준비',
-  loading: '로딩',
-  results: '결과',
-}
+const stageSteps = [
+  { key: 'quiz', label: '퀴즈' },
+  { key: 'simulation', label: '시뮬레이션' },
+  { key: 'results', label: '결과' },
+]
 
 export default function QuizPage() {
   const navigate = useNavigate()
@@ -32,144 +31,173 @@ export default function QuizPage() {
     riskScore,
   } = useQuiz()
 
+  const [quizIndex, setQuizIndex] = useState(0)
+  const [termIndex, setTermIndex] = useState(0)
+  const [advancedIndex, setAdvancedIndex] = useState(0)
+  const [slide, setSlide] = useState<'enter' | 'exit'>('enter')
+  const [isTransitioning, setIsTransitioning] = useState(false)
+
   useEffect(() => {
     start()
   }, [start])
 
-  // stage가 simulation으로 바뀌면 자동 이동
   useEffect(() => {
     if (stage === 'simulation') {
       navigate('/simulation', { state: { sessionId } })
     }
   }, [stage, navigate, sessionId])
 
-  const handleNext = async () => {
-    if (stage === 'quiz') {
-      await submitBasic()
-    } else if (stage === 'terms') {
-      await submitTermsStep()
-      // submitTermsStep 내부에서 stage가 변경됨
-    } else if (stage === 'advanced') {
-      await submitAdvancedStep()
-      // submitAdvancedStep 내부에서 stage가 simulation으로 변경 → useEffect가 이동 처리
-    }
+  const totalQuestions = showAdvanced ? 10 : 5
+  const currentStepLabel = stage === 'simulation' || stage === 'loading' ? 'simulation' : stage === 'results' ? 'results' : 'quiz'
+
+  const activeIndex = stage === 'quiz' ? quizIndex : stage === 'terms' ? termIndex : advancedIndex
+  const activeQuestion = currentQuestions[activeIndex]
+
+  const currentQuestionNumber = useMemo(() => {
+    if (stage === 'quiz') return Math.min(totalQuestions, quizIndex + 1)
+    if (stage === 'advanced') return Math.min(totalQuestions, 5 + advancedIndex + 1)
+    return Math.min(totalQuestions, totalQuestions)
+  }, [stage, quizIndex, advancedIndex, totalQuestions])
+
+  const handleSelect = (value: string) => {
+    if (!activeQuestion || loading || isTransitioning) return
+    setIsTransitioning(true)
+    updateAnswer(activeQuestion.id, value)
+    const stageNow = stage
+    const indexNow = activeIndex
+    const totalNow = currentQuestions.length
+    const isLastInStage = indexNow >= totalNow - 1
+
+    setSlide('exit')
+    window.setTimeout(async () => {
+      if (stageNow === 'quiz') {
+        if (!isLastInStage) {
+          setQuizIndex(indexNow + 1)
+        } else {
+          await submitBasic()
+        }
+      } else if (stageNow === 'terms') {
+        if (!isLastInStage) {
+          setTermIndex(indexNow + 1)
+        } else {
+          await submitTermsStep()
+        }
+      } else if (stageNow === 'advanced') {
+        if (!isLastInStage) {
+          setAdvancedIndex(indexNow + 1)
+        } else {
+          await submitAdvancedStep()
+        }
+      }
+      setSlide('enter')
+      setIsTransitioning(false)
+    }, 320)
   }
 
-  const nextLabel = () => {
-    if (stage === 'advanced') return '시뮬레이션으로 →'
-    if (stage === 'terms' && !showAdvanced) return '시뮬레이션으로 →'
-    return '다음 단계 →'
-  }
-
-  // 현재 단계의 모든 질문에 답했는지 확인
-  const allAnswered = currentQuestions.length > 0
-    ? currentQuestions.every((q) => answers[q.id] !== undefined && answers[q.id] !== '')
-    : false
+  const answeredCount = useMemo(() => {
+    const keys = Object.keys(answers).filter((id) => id.startsWith('Q'))
+    return keys.length
+  }, [answers])
 
   return (
-    <div className="min-h-screen bg-gray-50 px-4 py-10">
+    <div className="min-h-screen bg-gradient-to-b from-indigo-50 via-slate-50 to-white px-4 py-10">
       <div className="mx-auto max-w-5xl space-y-8">
-        {/* 헤더 */}
-        <div className="rounded-2xl bg-white p-6 shadow-lg shadow-slate-100">
+        <div className="rounded-3xl bg-white/80 p-6 shadow-xl shadow-indigo-50 ring-1 ring-slate-100 backdrop-blur">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <p className="text-sm font-semibold text-indigo-700">{stageLabel[stage] ?? stage}</p>
-              <h2 className="text-2xl font-bold text-slate-900">투자 성향 퀴즈</h2>
-              <p className="text-sm text-slate-600">단계별 질문에 답하면 맞춤 전략을 추천해드려요.</p>
-              {riskScore !== undefined && (
-                <p className="mt-1 text-xs text-indigo-600 font-semibold">
-                  현재 위험 점수: {riskScore}점
-                </p>
-              )}
+            <div className="space-y-1">
+              <p className="text-xs font-semibold uppercase tracking-wide text-indigo-700">투자 성향 퀴즈</p>
+              <h1 className="text-3xl font-black text-slate-900">한 번에 한 질문씩, 집중해서 답변해보세요.</h1>
+              <p className="text-sm text-slate-600">
+                기본 질문 → 용어 체크 → {showAdvanced ? '고급 질문' : '시뮬레이션'} 순서로 진행돼요.
+              </p>
             </div>
-            <div className="text-right text-sm text-slate-500">
-              세션: {sessionId !== 'local' ? sessionId.slice(0, 8) + '...' : '임시'}
+            <div className="rounded-2xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-slate-300">
+              세션: {sessionId !== 'local' ? `${sessionId.slice(0, 8)}…` : '임시'}
             </div>
           </div>
-          <div className="mt-6">
-            <ProgressBar current={stage} />
+
+          <div className="mt-6 flex items-center gap-3">
+            {stageSteps.map((step, idx) => {
+              const active = currentStepLabel === step.key || (currentStepLabel === 'simulation' && step.key === 'quiz')
+              const done = (idx === 0 && (stage === 'terms' || stage === 'advanced')) || (step.key === 'simulation' && (stage === 'simulation' || stage === 'loading')) || (step.key === 'results' && stage === 'results')
+              return (
+                <div key={step.key} className="flex items-center gap-3">
+                  <div className={`flex h-10 w-10 items-center justify-center rounded-full border text-sm font-bold transition-all ${
+                    active || done ? 'border-indigo-600 bg-indigo-50 text-indigo-700' : 'border-slate-200 bg-slate-50 text-slate-400'
+                  }`}
+                  >
+                    {idx + 1}
+                  </div>
+                  <span className={`text-sm font-semibold ${active || done ? 'text-slate-900' : 'text-slate-500'}`}>{step.label}</span>
+                  {idx < stageSteps.length - 1 && <div className="h-px w-8 bg-slate-200" />}
+                </div>
+              )
+            })}
           </div>
         </div>
 
-        {/* 로딩 */}
-        {loading ? (
-          <div className="rounded-2xl bg-white p-10 shadow-lg shadow-slate-100">
-            <LoadingSpinner label="처리 중..." />
+        {riskScore !== undefined && (
+          <RiskScoreReveal
+            score={riskScore}
+            visible
+            subtitle="답변을 기반으로 위험 감내도를 계산했어요."
+          />
+        )}
+
+        <div className="rounded-3xl bg-white/90 p-6 shadow-xl shadow-indigo-50 ring-1 ring-slate-100 backdrop-blur">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <QuizProgress
+              current={Math.max(1, currentQuestionNumber)}
+              total={totalQuestions}
+              label={showAdvanced ? 'Q1 ~ Q10 진행' : 'Q1 ~ Q5 진행'}
+            />
+            <div className="text-right text-xs text-slate-500">
+              답변 {answeredCount} / {totalQuestions}
+            </div>
           </div>
-        ) : (
-          <div className="grid gap-4">
-            {currentQuestions.length === 0 && stage !== 'terms' ? (
-              <div className="rounded-2xl bg-white p-8 text-center shadow-md shadow-slate-100">
-                <p className="text-slate-500">질문을 불러오는 중입니다...</p>
+
+          <div className="mt-6">
+            {loading && (
+              <div className="mb-4 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+                <LoadingSpinner label="불러오는 중..." />
               </div>
-            ) : (
-              currentQuestions.map((question) => (
-                <div key={question.id} className="rounded-2xl bg-white p-6 shadow-md shadow-slate-100">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <p className="text-xs font-semibold uppercase tracking-wide text-indigo-600">
-                        {question.id}
-                      </p>
-                      <h3 className="mt-1 text-lg font-bold text-slate-900">{question.title}</h3>
-                      {question.description && (
-                        <p className="mt-1 text-sm text-slate-500">{question.description}</p>
-                      )}
-                    </div>
-                    {question.helper && <Tooltip description={question.helper} />}
-                  </div>
-                  <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                    {question.options.map((option) => {
-                      const selected = answers[question.id] === option.value
-                      return (
-                        <button
-                          key={option.value}
-                          type="button"
-                          onClick={() => updateAnswer(question.id, option.value)}
-                          className={`flex items-start gap-3 rounded-xl border px-4 py-3 text-left transition-all duration-200 ${
-                            selected
-                              ? 'border-indigo-600 bg-indigo-50 shadow-sm'
-                              : 'border-slate-200 bg-white hover:border-indigo-200 hover:bg-slate-50'
-                          }`}
-                        >
-                          <span
-                            className={`mt-1 h-4 w-4 flex-shrink-0 rounded-full border-2 transition-colors ${
-                              selected ? 'border-indigo-600 bg-indigo-600' : 'border-slate-300 bg-white'
-                            }`}
-                          />
-                          <div className="flex-1 min-w-0">
-                            <p className="font-semibold text-slate-900">{option.label}</p>
-                            {option.tooltip && (
-                              <p className="text-xs text-slate-500 mt-0.5">{option.tooltip}</p>
-                            )}
-                          </div>
-                        </button>
-                      )
-                    })}
-                  </div>
-                </div>
-              ))
             )}
 
-            {/* 에러 메시지 */}
+            {!activeQuestion && (
+              <div className="flex items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-6 py-10 text-sm text-slate-500">
+                다음 단계로 이동 중입니다...
+              </div>
+            )}
+
+            {activeQuestion && (
+              stage === 'terms' ? (
+                <TermCheck
+                  question={activeQuestion}
+                  index={termIndex}
+                  total={currentQuestions.length}
+                  selected={answers[activeQuestion.id]}
+                  onSelect={handleSelect}
+                  slide={slide}
+                />
+              ) : (
+                <QuizCard
+                  question={activeQuestion}
+                  index={stage === 'quiz' ? quizIndex : 5 + advancedIndex}
+                  total={stage === 'quiz' ? currentQuestions.length : currentQuestions.length + (stage === 'advanced' ? 5 : 0)}
+                  selected={answers[activeQuestion.id]}
+                  onSelect={handleSelect}
+                  slide={slide}
+                />
+              )
+            )}
+
             {error && (
-              <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
+              <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
                 ⚠️ {error}
               </div>
             )}
-
-            {/* 다음 버튼 */}
-            <div className="flex justify-end gap-3 pt-4">
-              <button
-                type="button"
-                onClick={handleNext}
-                disabled={loading || (!allAnswered && currentQuestions.length > 0)}
-                className="rounded-xl bg-indigo-600 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-indigo-200 transition-all duration-300 hover:-translate-y-0.5 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0"
-              >
-                {loading ? '처리 중...' : nextLabel()}
-              </button>
-            </div>
           </div>
-        )}
+        </div>
       </div>
     </div>
   )
